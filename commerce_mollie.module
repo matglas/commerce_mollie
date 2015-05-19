@@ -95,6 +95,7 @@ function commerce_mollie_commerce_payment_method_info() {
 
   $payment_methods['commerce_mollie'] = array(
     'title' => t('Mollie'),
+    'display_title' => t('Mollie'),
     'description' => t('Integrates Mollie payment services support.'),
     'active' => TRUE,
     'offsite' => TRUE,
