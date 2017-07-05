@@ -221,6 +221,8 @@ function commerce_mollie_redirect_form($form, &$form_state, $order, $payment_met
   return $form;
 }
 
+
+
 /**
  * Response return url for Mollie.
  *
@@ -235,24 +237,10 @@ function commerce_mollie_redirect_form($form, &$form_state, $order, $payment_met
 function commerce_mollie_return($order, $payment_redirect_key) {
 
   if ($payment_redirect_key == $order->data['payment_redirect_key']) {
-
-    // Load non failed payments.
-    $transaction_query = new EntityFieldQuery();
-    $transaction_query->entityCondition('entity_type', 'commerce_payment_transaction')
-      ->propertyCondition('status', 'failure', '!=')
-      ->propertyCondition('order_id', $order->order_id);
-
-    $transaction = $transaction_query->execute();
-    if (!empty($transaction['commerce_payment_transaction'])) {
-      $transaction = entity_load('commerce_payment_transaction', array_keys($transaction['commerce_payment_transaction']));
-      $transaction = reset($transaction);
-    } else {
-      $transaction = NULL;
-    }
+    $transaction = commerce_mollie_order_transaction($order);
 
     if (!empty($transaction)) {
-      $transaction = commerce_mollie_request_status($order, $transaction);
-      commerce_payment_transaction_save($transaction);
+      $transaction = commerce_mollie_update_order_transaction($order, $transaction);
 
       if ($transaction->status == COMMERCE_PAYMENT_STATUS_FAILURE) {
         drupal_set_message(t('You cancelled your payment. Please proceed again or choose a different payment option.'));
@@ -274,6 +262,46 @@ function commerce_mollie_return($order, $payment_redirect_key) {
     watchdog('commerce_mollie', 'Return payment url used with incorrect redirect key.', array(), WATCHDOG_WARNING);
     drupal_not_found();
   }
+}
+
+/**
+ * Request the transaction status with the Mollie API and update the transaction.
+ *
+ * @param $order
+ * @param $transaction
+ *
+ * @return mixed
+ *  Returns a COMMERCE_PAYMENT_STATUS_*
+ */
+function commerce_mollie_update_order_transaction($order, $transaction) {
+  $transaction = commerce_mollie_request_status($order, $transaction);
+  commerce_payment_transaction_save($transaction);
+  return $transaction;
+}
+
+/**
+ * Return the first unfinished payment transation on the order.
+ *
+ * @param $order
+ *
+ * @return mixed|null
+ */
+function commerce_mollie_order_transaction($order) {
+  // Load non failed payments.
+  $transaction_query = new EntityFieldQuery();
+  $transaction_query->entityCondition('entity_type', 'commerce_payment_transaction')
+    ->propertyCondition('status', 'failure', '!=')
+    ->propertyCondition('order_id', $order->order_id);
+
+  $transaction = $transaction_query->execute();
+  if (!empty($transaction['commerce_payment_transaction'])) {
+    $transaction = entity_load('commerce_payment_transaction', array_keys($transaction['commerce_payment_transaction']));
+    $transaction = reset($transaction);
+  }
+  else {
+    $transaction = NULL;
+  }
+  return $transaction;
 }
 
 /**
